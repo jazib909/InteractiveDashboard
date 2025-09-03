@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Interactive Data Dashboard</title>
+    
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #00d4ff;
+            --secondary-color: #ff6b6b;
+            --success-color: #51cf66;
+            --warning-color: #ffd43b;
+            --danger-color: #ff6b6b;
+            --dark-bg: #0a0a0a;
+            --card-bg: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --border-color: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .navbar {
+            background: rgba(26, 26, 26, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--primary-color) !important;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: pulse 2s infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .dashboard-container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .dashboard-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary-color);
+            box-shadow: 0 10px 40px rgba(0, 212, 255, 0.2);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .card-title i {
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .metric-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .metric-item:hover {
+            background: rgba(0, 212, 255, 0.1);
+            border-color: var(--primary-color);
+        }
+
+        .metric-symbol {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-change {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .positive {
+            color: var(--success-color);
+        }
+
+        .negative {
+            color: var(--danger-color);
+        }
+
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .weather-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .weather-city {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .weather-temp {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .weather-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            min-height: 400px;
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .connected {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .disconnected {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--primary-color);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 1rem;
+            }
+            
+            .metric-grid,
+            .weather-grid,
+            .stats-overview {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line"></i>
+                Interactive Data Dashboard
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="status-indicator"></span>
+                <span class="text-muted">Live Updates</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status disconnected">
+        <i class="fas fa-wifi"></i> Connecting...
+    </div>
+
+    <!-- Main Dashboard -->
+    <div class="dashboard-container">
+        <!-- Overview Stats -->
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-value" id="totalStocks">5</div>
+                <div class="stat-label">Stocks Tracked</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalCrypto">3</div>
+                <div class="stat-label">Cryptocurrencies</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalCities">5</div>
+                <div class="stat-label">Cities Monitored</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="updateCount">0</div>
+                <div class="stat-label">Live Updates</div>
+            </div>
+        </div>
+
+        <!-- Stock Market Data -->
+        <div class="dashboard-card">
+            <h3 class="card-title">
+                <i class="fas fa-chart-line"></i>
+                Stock Market
+            </h3>
+            <div class="metric-grid" id="stockMetrics">
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cryptocurrency Data -->
+        <div class="dashboard-card">
+            <h3 class="card-title">
+                <i class="fab fa-bitcoin"></i>
+                Cryptocurrency
+            </h3>
+            <div class="metric-grid" id="cryptoMetrics">
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weather Data -->
+        <div class="dashboard-card">
+            <h3 class="card-title">
+                <i class="fas fa-cloud-sun"></i>
+                Global Weather
+            </h3>
+            <div class="weather-grid" id="weatherMetrics">
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Charts -->
+        <div class="chart-container">
+            <h3 class="card-title">
+                <i class="fas fa-chart-area"></i>
+                Real-time Price Charts
+            </h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <canvas id="stockChart" width="400" height="200"></canvas>
+                </div>
+                <div class="col-md-6">
+                    <canvas id="cryptoChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        // Global variables
+        let updateCounter = 0;
+        let stockChart, cryptoChart;
+        
+        // Initialize charts
+        function initializeCharts() {
+            // Stock Chart
+            const stockCtx = document.getElementById('stockChart').getContext('2d');
+            stockChart = new Chart(stockCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Stock Prices',
+                            color: '#ffffff'
+                        },
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#333333' }
+                        },
+                        y: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#333333' }
+                        }
+                    }
+                }
+            });
+
+            // Crypto Chart
+            const cryptoCtx = document.getElementById('cryptoChart').getContext('2d');
+            cryptoChart = new Chart(cryptoCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Cryptocurrency Prices',
+                            color: '#ffffff'
+                        },
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#333333' }
+                        },
+                        y: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#333333' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Socket event handlers
+        socket.on('connect', function() {
+            console.log('Connected to dashboard');
+            updateConnectionStatus(true);
+            socket.emit('request_data');
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from dashboard');
+            updateConnectionStatus(false);
+        });
+
+        socket.on('data_update', function(data) {
+            updateCounter++;
+            document.getElementById('updateCount').textContent = updateCounter;
+            
+            updateStockData(data.stocks);
+            updateCryptoData(data.crypto);
+            updateWeatherData(data.weather);
+            updateCharts(data.stocks, data.crypto);
+        });
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.innerHTML = '<i class="fas fa-wifi"></i> Connected';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.innerHTML = '<i class="fas fa-wifi"></i> Disconnected';
+            }
+        }
+
+        // Update stock data display
+        function updateStockData(stocks) {
+            const container = document.getElementById('stockMetrics');
+            container.innerHTML = '';
+            
+            Object.entries(stocks).forEach(([symbol, data]) => {
+                const changeClass = data.change >= 0 ? 'positive' : 'negative';
+                const changeIcon = data.change >= 0 ? '▲' : '▼';
+                
+                const metricItem = document.createElement('div');
+                metricItem.className = 'metric-item';
+                metricItem.innerHTML = `
+                    <div class="metric-symbol">${symbol}</div>
+                    <div class="metric-price">$${data.current_price}</div>
+                    <div class="metric-change ${changeClass}">
+                        ${changeIcon} $${Math.abs(data.change).toFixed(2)} (${data.change_percent.toFixed(2)}%)
+                    </div>
+                `;
+                container.appendChild(metricItem);
+            });
+        }
+
+        // Update crypto data display
+        function updateCryptoData(crypto) {
+            const container = document.getElementById('cryptoMetrics');
+            container.innerHTML = '';
+            
+            Object.entries(crypto).forEach(([symbol, data]) => {
+                const changeClass = data.change >= 0 ? 'positive' : 'negative';
+                const changeIcon = data.change >= 0 ? '▲' : '▼';
+                
+                const metricItem = document.createElement('div');
+                metricItem.className = 'metric-item';
+                metricItem.innerHTML = `
+                    <div class="metric-symbol">${symbol.replace('-USD', '')}</div>
+                    <div class="metric-price">$${data.current_price.toLocaleString()}</div>
+                    <div class="metric-change ${changeClass}">
+                        ${changeIcon} $${Math.abs(data.change).toFixed(2)} (${data.change_percent.toFixed(2)}%)
+                    </div>
+                `;
+                container.appendChild(metricItem);
+            });
+        }
+
+        // Update weather data display
+        function updateWeatherData(weather) {
+            const container = document.getElementById('weatherMetrics');
+            container.innerHTML = '';
+            
+            Object.entries(weather).forEach(([city, data]) => {
+                const weatherItem = document.createElement('div');
+                weatherItem.className = 'weather-item';
+                weatherItem.innerHTML = `
+                    <div class="weather-city">${city}</div>
+                    <div class="weather-temp">${data.temperature.toFixed(1)}°C</div>
+                    <div class="weather-details">
+                        <span>💧 ${data.humidity.toFixed(0)}%</span>
+                        <span>🌊 ${data.pressure.toFixed(0)} hPa</span>
+                    </div>
+                `;
+                container.appendChild(weatherItem);
+            });
+        }
+
+        // Update charts
+        function updateCharts(stocks, crypto) {
+            // Update stock chart
+            const stockLabels = [];
+            const stockData = {};
+            
+            Object.entries(stocks).forEach(([symbol, data]) => {
+                if (data.timestamps && data.timestamps.length > 0) {
+                    if (stockLabels.length === 0) {
+                        stockLabels.push(...data.timestamps.slice(-10)); // Last 10 points
+                    }
+                    stockData[symbol] = data.prices.slice(-10);
+                }
+            });
+            
+            stockChart.data.labels = stockLabels;
+            stockChart.data.datasets = Object.entries(stockData).map(([symbol, prices], index) => ({
+                label: symbol,
+                data: prices,
+                borderColor: getChartColor(index),
+                backgroundColor: getChartColor(index) + '20',
+                fill: false,
+                tension: 0.4
+            }));
+            stockChart.update('none');
+            
+            // Update crypto chart
+            const cryptoLabels = [];
+            const cryptoData = {};
+            
+            Object.entries(crypto).forEach(([symbol, data]) => {
+                if (data.timestamps && data.timestamps.length > 0) {
+                    if (cryptoLabels.length === 0) {
+                        cryptoLabels.push(...data.timestamps.slice(-10));
+                    }
+                    cryptoData[symbol] = data.prices.slice(-10);
+                }
+            });
+            
+            cryptoChart.data.labels = cryptoLabels;
+            cryptoChart.data.datasets = Object.entries(cryptoData).map(([symbol, prices], index) => ({
+                label: symbol.replace('-USD', ''),
+                data: prices,
+                borderColor: getChartColor(index + 5),
+                backgroundColor: getChartColor(index + 5) + '20',
+                fill: false,
+                tension: 0.4
+            }));
+            cryptoChart.update('none');
+        }
+
+        // Get chart colors
+        function getChartColor(index) {
+            const colors = [
+                '#00d4ff', '#ff6b6b', '#51cf66', '#ffd43b', '#ff8cc8',
+                '#845ef7', '#ffa94d', '#69db7c', '#74c0fc', '#fa5252'
+            ];
+            return colors[index % colors.length];
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            
+            // Load initial data
+            fetch('/api/initial-data')
+                .then(response => response.json())
+                .then(data => {
+                    updateStockData(data.stocks);
+                    updateCryptoData(data.crypto);
+                    updateWeatherData(data.weather);
+                    updateCharts(data.stocks, data.crypto);
+                })
+                .catch(error => {
+                    console.error('Error loading initial data:', error);
+                });
+        });
+    </script>
+</body>
+</html>
